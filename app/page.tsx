@@ -6,6 +6,8 @@ import { LeaderboardTable } from "@/components/leaderboard-table";
 import { RecentTradesTable, RecentTradesTableSkeleton } from "@/components/recent-trades";
 import { TrendingMarketsSection } from "@/components/trending-markets";
 import { LeaderboardSortKey, PeriodKey, PlatformCode, TraderSummary, RecentTrade } from "@/lib/types";
+import { platformLogo } from "@/components/platform-badges";
+import { SiteHeader } from "@/components/site-header";
 
 const periods: PeriodKey[] = ["ALL", "YTD", "1M", "1D"];
 const platformKeys: PlatformCode[] = ["PM", "KS", "OL"];
@@ -82,7 +84,6 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [recentTrades, setRecentTrades] = useState<RecentTrade[]>([]);
   const [isTradesLoading, setIsTradesLoading] = useState(true);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [visibleCount, setVisibleCount] = useState(30);
   const [dailyProfit, setDailyProfit] = useState<number | null>(null);
 
@@ -100,19 +101,6 @@ export default function HomePage() {
       })
       .catch((err) => console.error("Error loading daily profit:", err));
   }, []);
-
-  useEffect(() => {
-    const savedTheme = (localStorage.getItem("theme") as "dark" | "light") || "dark";
-    setTheme(savedTheme);
-    document.documentElement.setAttribute("data-theme", savedTheme);
-  }, []);
-
-  const toggleTheme = () => {
-    const nextTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
-    localStorage.setItem("theme", nextTheme);
-    document.documentElement.setAttribute("data-theme", nextTheme);
-  };
 
   const formatAsOf = (asOfStr: string) => {
     if (!asOfStr) return "Jul 14, 12:48 PM";
@@ -159,6 +147,7 @@ export default function HomePage() {
 
   return (
     <main className="page-shell">
+      <SiteHeader active="leaderboard" />
       <section className="homepage-grid">
         <div className="hero-section" style={{ padding: "0 0 20px 0" }}>
           
@@ -296,40 +285,6 @@ export default function HomePage() {
                 {Math.min(visibleCount, leaderboard.items.length)} of {leaderboard.total || 0} traders
               </span>
             </div>
-            
-            <button
-              onClick={toggleTheme}
-              style={{
-                background: "none",
-                border: "none",
-                color: "var(--muted)",
-                cursor: "pointer",
-                padding: 6,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "color 120ms ease"
-              }}
-              aria-label="Toggle theme"
-            >
-              {theme === "dark" ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-                </svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="4"/>
-                  <path d="M12 2v2"/>
-                  <path d="M12 20v2"/>
-                  <path d="M4.93 4.93l1.41 1.41"/>
-                  <path d="M17.66 17.66l1.41 1.41"/>
-                  <path d="M2 12h2"/>
-                  <path d="M20 12h2"/>
-                  <path d="M6.34 17.66l-1.41 1.41"/>
-                  <path d="M19.07 4.93l-1.41 1.41"/>
-                </svg>
-              )}
-            </button>
           </div>
 
           {/* Typography-compliant Filter row */}
@@ -403,15 +358,7 @@ export default function HomePage() {
               </button>
 
               {/* Platform Group Container (PM, KS, OL, All grouped) */}
-              <div style={{
-                display: "inline-flex",
-                alignItems: "center",
-                background: "var(--panel-2)",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
-                padding: "3px",
-                gap: "4px"
-              }}>
+              <div className="platform-filter-group">
                 {platformKeys.map((item) => {
                   const isActive = platform === item;
                   return (
@@ -419,38 +366,9 @@ export default function HomePage() {
                       key={item}
                       type="button"
                       onClick={() => setPlatform(item)}
-                      style={isActive ? {
-                        background: "var(--text)",
-                        color: "var(--bg)",
-                        fontWeight: 600,
-                        fontSize: "0.78rem",
-                        padding: "4px 8px",
-                        borderRadius: "3px",
-                        border: "none",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px"
-                      } : {
-                        background: "transparent",
-                        color: "var(--muted)",
-                        fontWeight: 600,
-                        fontSize: "0.78rem",
-                        padding: "4px 8px",
-                        border: "none",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px"
-                      }}
+                      className={`platform-filter-btn ${isActive ? "active" : ""}`}
                     >
-                      <span className={`platform-filter-icon ${item.toLowerCase()}`} style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: "2px",
-                        display: "inline-block",
-                        backgroundColor: item === "PM" ? "#0c4ffb" : item === "KS" ? "#00b87c" : "#ff5a00"
-                      }} />
+                      {platformLogo(item)}
                       {item}
                     </button>
                   );
@@ -460,24 +378,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setPlatform("ALL")}
-                  style={platform === "ALL" ? {
-                    background: "var(--text)",
-                    color: "var(--bg)",
-                    fontWeight: 600,
-                    fontSize: "0.78rem",
-                    padding: "4px 8px",
-                    borderRadius: "3px",
-                    border: "none",
-                    cursor: "pointer"
-                  } : {
-                    background: "transparent",
-                    color: "var(--muted)",
-                    fontWeight: 600,
-                    fontSize: "0.78rem",
-                    padding: "4px 8px",
-                    border: "none",
-                    cursor: "pointer"
-                  }}
+                  className={`platform-filter-btn ${platform === "ALL" ? "active" : ""}`}
                 >
                   All
                 </button>

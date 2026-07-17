@@ -3,8 +3,9 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { RecentTrade } from "@/lib/types";
+import { RecentTrade, PlatformCode } from "@/lib/types";
 import { getTraderProfile } from "@/lib/mock-data";
+import { platformLogo } from "@/components/platform-badges";
 
 function formatAmount(n: number) {
   // Match image: $262.26 style (no k/M abbreviation for small amounts)
@@ -12,15 +13,13 @@ function formatAmount(n: number) {
   return `$${n.toFixed(2)}`;
 }
 
-function PMBadge() {
+function PlatformLogoBadge({ platform }: { platform: PlatformCode }) {
   return (
-    <span title="Polymarket" style={{
+    <span title={platform === "PM" ? "Polymarket" : platform === "KS" ? "Kalshi" : "Opinion Labs"} style={{
       display: "inline-flex", alignItems: "center", justifyContent: "center",
-      width: 18, height: 18, borderRadius: "50%", background: "#1f6feb", flexShrink: 0
+      width: 18, height: 18, flexShrink: 0
     }}>
-      <svg viewBox="0 0 137 169" style={{ width: 9, height: 11 }} fill="none">
-        <path d="M136.267 152.495C136.267 159.76 136.267 163.392 133.891 165.192C131.516 166.993 128.019 166.012 121.024 164.049L8.63192 132.51C4.41793 131.328 2.31093 130.737 1.09248 129.129C-0.125977 127.522 -0.125977 125.333 -0.125977 120.957V47.0434C-0.125977 42.6667 -0.125977 40.4783 1.09248 38.8709C2.31093 37.2634 4.41792 36.6722 8.63191 35.4897L121.024 3.95096C128.019 1.98834 131.516 1.00703 133.891 2.80771C136.267 4.60839 136.267 8.24049 136.267 15.5047V152.495ZM27.9043 122.228L120.966 148.345V96.1133L27.9043 122.228ZM15.1738 110.111L108.217 84L15.1738 57.8887V110.111ZM27.9033 45.7725L120.966 71.8877V19.6553L27.9033 45.7725Z" fill="#ffffff" />
-      </svg>
+      {platformLogo(platform)}
     </span>
   );
 }
@@ -86,7 +85,10 @@ export function RecentTrades({ items, detailed = false }: { items: RecentTrade[]
             </div>
             <p>{trade.marketTitle}</p>
             <div className="trade-meta muted">
-              <span>{trade.platform}</span><span>{formatAmount(trade.sizeUsd)}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                {platformLogo(trade.platform)}
+                {trade.platform}
+              </span><span>{formatAmount(trade.sizeUsd)}</span>
               <span className={trade.traderScore >= 0 ? "positive" : "negative"}>{trade.traderScore >= 0 ? `+${trade.traderScore.toFixed(2)}` : trade.traderScore.toFixed(2)}</span>
               <span>{trade.timestamp}</span>
             </div>
@@ -320,7 +322,7 @@ export function RecentTradesTable({ items, limit = 20 }: { items: RecentTrade[];
                           onMouseOut={e => (e.currentTarget.style.textDecoration = "none")}>
                           {trade.traderName}
                         </Link>
-                        <PMBadge />
+                        <PlatformLogoBadge platform={trade.platform} />
                         <span style={{ color: scoreColor, fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
                           {isProfitable ? displayFmt : displayFmt}
                         </span>
