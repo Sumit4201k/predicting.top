@@ -79,6 +79,7 @@ export default function HomePage() {
   const [sort, setSort] = useState<LeaderboardSortKey>("smart_score");
   const [search, setSearch] = useState("");
   const [xLinkedOnly, setXLinkedOnly] = useState(false);
+  const [affiliatedOnly, setAffiliatedOnly] = useState(false);
   const [minPnlFilter, setMinPnlFilter] = useState(0); // 0 or 5000 ($5+)
   const [leaderboard, setLeaderboard] = useState(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,7 +90,7 @@ export default function HomePage() {
 
   useEffect(() => {
     setVisibleCount(30);
-  }, [period, platform, sort, search, xLinkedOnly, minPnlFilter]);
+  }, [period, platform, sort, search, xLinkedOnly, minPnlFilter, affiliatedOnly]);
 
   useEffect(() => {
     fetch("/api/v1/daily-profit")
@@ -120,7 +121,7 @@ export default function HomePage() {
 
   useEffect(() => {
     setIsLoading(true);
-    fetch(`/api/v1/leaderboard?period=${period}&platform=${platform}&sort=${sort}&search=${encodeURIComponent(search)}&xLinkedOnly=${xLinkedOnly}&minPnl=${minPnlFilter}`)
+    fetch(`/api/v1/leaderboard?period=${period}&platform=${platform}&sort=${sort}&search=${encodeURIComponent(search)}&xLinkedOnly=${xLinkedOnly}&minPnl=${minPnlFilter}&affiliatedOnly=${affiliatedOnly}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(`${res.status}`);
         return res.json();
@@ -128,7 +129,7 @@ export default function HomePage() {
       .then((data) => setLeaderboard(data))
       .catch((err) => console.error("Leaderboard fetch error:", err))
       .finally(() => setIsLoading(false));
-  }, [period, platform, sort, search, xLinkedOnly, minPnlFilter]);
+  }, [period, platform, sort, search, xLinkedOnly, minPnlFilter, affiliatedOnly]);
 
   useEffect(() => {
     setIsTradesLoading(true);
@@ -384,25 +385,44 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* PredictIt circular decorative logo */}
-              <span className="platform-predictit-chip" style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                background: "var(--panel-2)",
-                border: "1px solid var(--border)",
-                cursor: "pointer",
-                transition: "all 120ms ease"
-              }} title="PredictIt">
+              {/* Predicting.top affiliated traders toggle */}
+              <button
+                type="button"
+                onClick={() => setAffiliatedOnly(!affiliatedOnly)}
+                className="platform-predictit-chip"
+                style={affiliatedOnly ? {
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--text)",
+                  border: "1px solid var(--text)",
+                  cursor: "pointer",
+                  transition: "all 120ms ease",
+                  padding: 0
+                } : {
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--panel-2)",
+                  border: "1px solid var(--border)",
+                  cursor: "pointer",
+                  transition: "all 120ms ease",
+                  padding: 0
+                }}
+                title="Click to show our traders"
+              >
                 <svg viewBox="0 0 24 24" style={{ width: 14, height: 14 }} aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" fill="var(--text)" />
-                  <circle cx="12" cy="12" r="6" fill="none" stroke="var(--bg)" strokeWidth="2.2" />
-                  <circle cx="12" cy="12" r="2" fill="var(--bg)" />
+                  <circle cx="12" cy="12" r="10" fill={affiliatedOnly ? "var(--bg)" : "var(--text)"} />
+                  <circle cx="12" cy="12" r="6" fill="none" stroke={affiliatedOnly ? "var(--text)" : "var(--bg)"} strokeWidth="2.2" />
+                  <circle cx="12" cy="12" r="2" fill={affiliatedOnly ? "var(--text)" : "var(--bg)"} />
                 </svg>
-              </span>
+              </button>
 
               {/* X linked toggle chip */}
               <button

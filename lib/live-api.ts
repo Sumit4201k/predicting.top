@@ -47,6 +47,7 @@ export async function getLiveLeaderboard(filters: {
   period?: "1D" | "1M" | "YTD" | "ALL";
   minPnl?: number;
   xLinkedOnly?: boolean;
+  affiliatedOnly?: boolean;
 }): Promise<TraderSummary[]> {
   const period = filters.period || "1M";
   
@@ -86,6 +87,7 @@ export async function getLiveLeaderboard(filters: {
       wallet: t.wallet || t.opinion_wallet || "",
       profileViews: t.views || 0,
       xLinked: !!t.twitter,
+      affiliated: !!t.affiliated,
       smartScore: ss.score || 0,
       sharpe: ss.sharpeRatio || 0,
       winRate,
@@ -114,6 +116,10 @@ export async function getLiveLeaderboard(filters: {
 
   if (filters.xLinkedOnly) {
     mapped = mapped.filter(t => t.xLinked);
+  }
+
+  if (filters.affiliatedOnly) {
+    mapped = mapped.filter(t => t.affiliated);
   }
 
   // Apply Sorting
@@ -283,6 +289,7 @@ export async function getLivePositions(side: "ALL" | "YES" | "NO", platform: "AL
     title: string;
     platform: PlatformCode;
     endsIn: string;
+    endsInDays: number;
     priceLabel: string;
     icon: string;
     traders: PositionTrader[];
@@ -302,14 +309,42 @@ export async function getLivePositions(side: "ALL" | "YES" | "NO", platform: "AL
     const key = title;
 
     if (!marketGroups[key]) {
-      // Estimate relative endsIn text
-      const endsIn = pos.ends_in || "5mo left";
+      // Estimate relative endsIn text dynamically from end_date
+      let endsIn = "5mo left";
+      let endsInDays = 150;
+      if (pos.end_date) {
+        try {
+          const endDate = new Date(pos.end_date);
+          const now = new Date();
+          const diffTime = endDate.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          endsInDays = diffDays;
+          if (diffDays <= 0) {
+            endsIn = "ended";
+          } else if (diffDays < 7) {
+            endsIn = `${diffDays}d left`;
+          } else if (diffDays < 30) {
+            const weeks = Math.round(diffDays / 7);
+            endsIn = `${weeks}w left`;
+          } else if (diffDays < 365) {
+            const months = Math.round(diffDays / 30.4);
+            endsIn = `${months}mo left`;
+          } else {
+            const years = Math.round(diffDays / 365);
+            endsIn = `${years}yr left`;
+          }
+        } catch (e) {
+          endsIn = "5mo left";
+          endsInDays = 150;
+        }
+      }
       const currentPrice = pos.current_price != null ? `${Math.round(pos.current_price * 100)}¢` : "50¢";
 
       marketGroups[key] = {
         title,
         platform: itemPlatform,
         endsIn,
+        endsInDays,
         priceLabel: currentPrice,
         icon: pos.icon || "",
         traders: []
@@ -333,7 +368,8 @@ export async function getLivePositions(side: "ALL" | "YES" | "NO", platform: "AL
       shares: Math.round(pos.size).toLocaleString(),
       valueUsd: pos.current_value || 0,
       sharpe: metrics.sharpe,
-      side: itemSide
+      side: itemSide,
+      currentPrice: pos.current_price
     });
   });
 
@@ -358,16 +394,18 @@ export async function getLivePositions(side: "ALL" | "YES" | "NO", platform: "AL
       slug: key.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
       title: group.title,
       platform: group.platform,
-      side: "YES", // default fallback side
+      side: smartMoneyYes >= 50 ? "YES" : "NO", // dynamic fallback side based on majority holding
       marketValueUsd: totalValue,
       smartMoneyShare: totalValue > 50000 ? 85 : 65, // legacy share ratio
       traders: group.traders,
       endsIn: group.endsIn,
+      endsInDays: group.endsInDays,
       priceLabel: group.priceLabel,
       marketIcon: group.icon,
       smartMoneyYes,
       smartMoneyNo,
-      tradersCount: uniqueTraders
+      tradersCount: uniqueTraders,
+      probability: smartMoneyYes
     };
   });
 
@@ -382,28 +420,32 @@ function fmtVolume(n: number): string {
 }
 
 function formatRelativeTime(isoString: string | null | undefined): string {
-  if (!isoString) return "live";
+  if (!isoString) return "just now";
   try {
     const tradeTime = new Date(isoString).getTime();
-    if (isNaN(tradeTime)) return "live";
+    if (isNaN(tradeTime)) return "just now";
     const now = Date.now();
     const diffMs = now - tradeTime;
     if (diffMs <= 0) return "just now";
     
     const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins === 0) return "just now";
+    if (diffMins === 1) return "1 minute ago";
     if (diffMins < 60) {
-      return `${diffMins}m`;
+      return `${diffMins} minutes ago`;
     }
     
     const diffHours = Math.floor(diffMins / 60);
+    if (diffHours === 1) return "1 hour ago";
     if (diffHours < 24) {
-      return `${diffHours}hr`;
+      return `${diffHours} hours ago`;
     }
     
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d`;
+    if (diffDays === 1) return "1 day ago";
+    return `${diffDays} days ago`;
   } catch (e) {
-    return "live";
+    return "just now";
   }
 }
 
@@ -531,14 +573,15 @@ export async function getLiveRecentTrades(limit: number = 100, minAmount: number
       marketTitle: t.market,
       side: t.outcome.toUpperCase() === "YES" ? "YES" : "NO",
       sizeUsd: t.amount || 0,
-      timestamp: t.timestamp || "just now",
+      timestamp: t.time || "just now",
       platform,
       price: t.price != null ? Math.round(t.price * 100) : 50,
       traderScore: metrics.score,
       traderSharpe: metrics.sharpe,
       category: getCategory(t.market),
       type: t.type === "sell" ? "sell" : "buy",
-      avatarUrl: metrics.avatarUrl
+      avatarUrl: metrics.avatarUrl,
+      marketIcon: t.icon || ""
     };
   });
 

@@ -12,13 +12,138 @@ export default async function TraderProfilePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const profile = getTraderProfile(slug);
+
+  let profileData: any = null;
+  let historyData: any = null;
+
+  try {
+    const res = await fetch(`https://predicting.top/api/trader/${slug}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.trader) {
+        profileData = data.trader;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch trader profile from upstream:", e);
+  }
+
+  let profile: any = null;
+
+  if (profileData) {
+    // Determine platform badges
+    let platforms: string[] = ["polymarket"];
+    if (profileData.platform === "both") {
+      platforms = ["polymarket", "kalshi"];
+    } else if (profileData.platform === "kalshi") {
+      platforms = ["kalshi"];
+    } else if (profileData.platform === "opinion") {
+      platforms = ["opinion"];
+    }
+
+    // Fetch history if applicable
+    if (profileData.platform === "kalshi" || profileData.platform === "both") {
+      try {
+        const resHist = await fetch(`https://predicting.top/api/kalshi/${slug}/history`);
+        if (resHist.ok) {
+          historyData = await resHist.json();
+        }
+      } catch (e) {
+        console.error("Failed to fetch trader history from upstream:", e);
+      }
+    }
+
+    // Process history data if available
+    let pnlHistory: Array<{ label: string; value: number }> = [];
+    let wins = 0;
+    let losses = 0;
+    let monthlyPnlUsd = 0;
+    let dayResults: Array<"win" | "loss" | "flat"> = [];
+    let monthLabel = "Jul 2026";
+
+    if (historyData?.history && historyData.history.length > 0) {
+      const sortedHist = [...historyData.history].sort((a: any, b: any) => a.timestamp - b.timestamp);
+      
+      // Build P&L History for chart
+      pnlHistory = sortedHist.map((pt: any) => ({
+        label: new Date(pt.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        value: pt.pnl
+      }));
+
+      // Calculate daily P&L differences to populate monthly calendar
+      // 1. Group by calendar date (YYYY-MM-DD) taking the last PnL of each day
+      const dailyPnlMap = new Map<string, number>();
+      sortedHist.forEach((pt: any) => {
+        const dateStr = new Date(pt.timestamp).toISOString().split('T')[0];
+        dailyPnlMap.set(dateStr, pt.pnl);
+      });
+
+      const uniqueDates = Array.from(dailyPnlMap.keys()).sort();
+      const dailyChanges: Array<{ date: string; change: number }> = [];
+      
+      for (let i = 0; i < uniqueDates.length; i++) {
+        const currentDate = uniqueDates[i];
+        const currentPnl = dailyPnlMap.get(currentDate)!;
+        const prevPnl = i > 0 ? dailyPnlMap.get(uniqueDates[i - 1])! : currentPnl;
+        dailyChanges.push({
+          date: currentDate,
+          change: currentPnl - prevPnl
+        });
+      }
+
+      // Filter daily changes for the last month present in the data
+      if (uniqueDates.length > 0) {
+        const lastDateStr = uniqueDates[uniqueDates.length - 1];
+        const lastMonthStr = lastDateStr.substring(0, 7); // "YYYY-MM"
+        
+        const lastMonthDate = new Date(lastDateStr);
+        monthLabel = lastMonthDate.toLocaleDateString("en-US", { month: "short", year: "numeric" }); // e.g. "Jan 2026"
+        
+        const monthChanges = dailyChanges.filter(c => c.date.startsWith(lastMonthStr));
+        
+        monthlyPnlUsd = monthChanges.reduce((acc, c) => acc + c.change, 0);
+        wins = monthChanges.filter(c => c.change > 0).length;
+        losses = monthChanges.filter(c => c.change < 0).length;
+        
+        dayResults = monthChanges.map(c => {
+          if (c.change > 1) return "win";
+          if (c.change < -1) return "loss";
+          return "flat";
+        });
+      }
+    }
+
+    profile = {
+      slug: profileData.name,
+      displayName: profileData.name,
+      avatarUrl: profileData.pfp?.trim() || "",
+      platforms,
+      xLinked: !!profileData.twitter,
+      smartScore: profileData.smart_score?.score ?? 50.0,
+      monthlyPnlUsd,
+      wins,
+      losses,
+      winRate: (profileData.smart_score?.winRate ?? 0.5) * 100,
+      sharpe: profileData.smart_score?.sharpeRatio ?? 1.0,
+      maxDrawdown: (profileData.smart_score?.maxDrawdownPercent ?? 0.1) * 100,
+      profitFactor: profileData.smart_score?.profitFactor ?? 1.0,
+      consistency: (profileData.smart_score?.rSquared ?? 0.8) * 100,
+      pnlHistory,
+      monthLabel,
+      dayResults
+    };
+  } else {
+    // Fall back to mock data
+    profile = getTraderProfile(slug);
+  }
 
   if (!profile) {
     notFound();
   }
 
-  const joinedDate = profile.joinedDaysAgo
+  const joinedDate = profileData?.join_date
+    ? `Joined ${new Date(profileData.join_date).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
+    : profile.joinedDaysAgo
     ? `Joined ${new Date(Date.now() - profile.joinedDaysAgo * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
     : "Live trader";
 
@@ -63,20 +188,42 @@ export default async function TraderProfilePage({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-          <Image
-            src={profile.avatarUrl}
-            alt={profile.displayName}
-            width={80}
-            height={80}
-            unoptimized
-            style={{
-              borderRadius: "50%",
-              width: 80,
-              height: 80,
-              border: "2px solid rgba(46,230,139,0.4)",
-              flexShrink: 0,
-            }}
-          />
+          {profile.avatarUrl ? (
+            <Image
+              src={profile.avatarUrl}
+              alt={profile.displayName}
+              width={80}
+              height={80}
+              unoptimized
+              style={{
+                borderRadius: "50%",
+                width: 80,
+                height: 80,
+                border: "2px solid rgba(46,230,139,0.4)",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                borderRadius: "50%",
+                width: 80,
+                height: 80,
+                border: "2px solid rgba(46,230,139,0.4)",
+                flexShrink: 0,
+                background: "#1e293b",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "2rem",
+                fontWeight: 800,
+                color: "var(--muted)",
+                fontFamily: "Inter, sans-serif"
+              }}
+            >
+              {profile.displayName.trim()[0]?.toUpperCase() || "?"}
+            </div>
+          )}
           <div>
             {/* Name + badges row */}
             <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
@@ -116,13 +263,15 @@ export default async function TraderProfilePage({
       </section>
 
       {/* Month Calendar (interactive dropdown) */}
-      <MonthCalendar
-        monthLabel={profile.monthLabel || "Jul 2026"}
-        monthlyPnlUsd={profile.monthlyPnlUsd}
-        wins={profile.wins}
-        losses={profile.losses}
-        dayResults={profile.dayResults || ["win", "win", "flat", "loss", "win"]}
-      />
+      {profile.dayResults && profile.dayResults.length > 0 && (
+        <MonthCalendar
+          monthLabel={profile.monthLabel || "Jul 2026"}
+          monthlyPnlUsd={profile.monthlyPnlUsd}
+          wins={profile.wins}
+          losses={profile.losses}
+          dayResults={profile.dayResults}
+        />
+      )}
 
       {/* P&L Chart */}
       {profile.pnlHistory?.length > 0 && (

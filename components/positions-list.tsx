@@ -18,27 +18,20 @@ export function PositionsList({
     return tradersList.filter((trader) => {
       // Score filter
       if (scoreFloor !== "Any") {
-        const floor = scoreFloor === "60+" ? 60 : 70;
+        const floor = parseInt(scoreFloor, 10);
         if (trader.score < floor) return false;
       }
       // Sharpe filter
       if (sharpeFloor !== "Any") {
         const floor = parseFloat(sharpeFloor);
-        const profile = getTraderProfile(trader.traderSlug);
-        if (!profile || profile.sharpe < floor) return false;
+        if (trader.sharpe === undefined || trader.sharpe < floor) return false;
       }
       return true;
     });
   };
 
-  // Sort so that "Will Argentina win the 2026 FIFA World Cup?" appears first
-  const sortedItems = items.slice().sort((a, b) => {
-    const aIsArgentina = a.title.includes("Will Argentina win the 2026 FIFA World Cup?");
-    const bIsArgentina = b.title.includes("Will Argentina win the 2026 FIFA World Cup?");
-    if (aIsArgentina && !bIsArgentina) return -1;
-    if (!aIsArgentina && bIsArgentina) return 1;
-    return 0;
-  });
+  // Preserve the correct ranking order computed in page.tsx
+  const sortedItems = items;
 
   return (
     <div className="positions-list" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -122,7 +115,7 @@ export function PositionsList({
                   fontWeight: 700,
                   color: "var(--text)",
                   fontFamily: "Inter, var(--font-sans), sans-serif"
-                }}>{formatCurrency(market.marketValueUsd, true)}</div>
+                }}>{formatCurrency(market.marketValueUsd)}</div>
                 
                 <div style={{
                   fontSize: "0.78rem",
@@ -226,7 +219,7 @@ export function PositionsList({
                           </div>
                         </td>
                         <td style={{ padding: "8px 8px", borderTop: "1px solid rgba(255,255,255,0.02)", color: sideColor, fontWeight: 700 }}>
-                          {market.side === "YES" ? "Y" : "N"}
+                          {(trader.side ?? market.side) === "YES" ? "Y" : "N"}
                         </td>
                         <td style={{ padding: "8px 8px", borderTop: "1px solid rgba(255,255,255,0.02)", color: scoreColor, fontWeight: 700 }}>
                           {trader.score}

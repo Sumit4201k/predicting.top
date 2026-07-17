@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { RecentTrade, PlatformCode } from "@/lib/types";
@@ -167,8 +167,10 @@ export function RecentTradesTableSkeleton() {
   );
 }
 
-export function RecentTradesTable({ items, limit = 20 }: { items: RecentTrade[]; limit?: number }) {
-  const [minSize, setMinSize] = useState("0");
+export function RecentTradesTable({ items: initialItems, limit = 20 }: { items: RecentTrade[]; limit?: number }) {
+  const [minSize, setMinSize] = useState("100");
+  const [trades, setTrades] = useState<RecentTrade[]>(initialItems);
+  const [isLoadingLive, setIsLoadingLive] = useState(false);
   const [greaterThan95, setGreaterThan95] = useState(false);
   const [sportsOnly, setSportsOnly] = useState(false);
   const [scoreFloor, setScoreFloor] = useState("Any");
@@ -176,7 +178,24 @@ export function RecentTradesTable({ items, limit = 20 }: { items: RecentTrade[];
   const [metric, setMetric] = useState<"score" | "sharpe">("sharpe");
   const [visibleCount, setVisibleCount] = useState(limit);
 
-  const filtered = useMemo(() => items.filter((trade) => {
+  useEffect(() => {
+    setTrades(initialItems);
+  }, [initialItems]);
+
+  useEffect(() => {
+    setIsLoadingLive(true);
+    fetch(`/api/v1/trades/recent?limit=100&minAmount=${minSize}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setTrades(data);
+        }
+      })
+      .catch((err) => console.error("[RecentTradesTable] fetch error:", err))
+      .finally(() => setIsLoadingLive(false));
+  }, [minSize]);
+
+  const filtered = useMemo(() => trades.filter((trade) => {
     if (trade.sizeUsd < Number(minSize)) return false;
     if (greaterThan95 && trade.price < 95) return false;
     if (sportsOnly && trade.category !== "Sports") return false;
@@ -184,7 +203,7 @@ export function RecentTradesTable({ items, limit = 20 }: { items: RecentTrade[];
     if (scoreFloor !== "Any" && trader && trader.smartScore < Number(scoreFloor)) return false;
     if (sharpeFloor !== "Any" && trader && trader.sharpe < Number(sharpeFloor)) return false;
     return true;
-  }), [items, minSize, greaterThan95, sportsOnly, scoreFloor, sharpeFloor]);
+  }), [trades, minSize, greaterThan95, sportsOnly, scoreFloor, sharpeFloor]);
 
   const visible = filtered.slice(0, visibleCount);
 
@@ -287,14 +306,32 @@ export function RecentTradesTable({ items, limit = 20 }: { items: RecentTrade[];
             {visible.map((trade, idx) => {
               const trader = getTraderProfile(trade.traderSlug);
               const avatar = trade.avatarUrl || trader?.avatarUrl || `https://api.dicebear.com/9.x/glass/svg?seed=${encodeURIComponent(trade.traderSlug.trim())}`;
+              
+              // Dynamic Metric Value & Formatting
               const displayVal = metric === "sharpe"
-                ? (trader?.sharpe ?? trade.traderScore)
-                : (trader?.smartScore ?? trade.traderScore * 20 + 50);
-              const displayFmt = metric === "sharpe" ? displayVal.toFixed(2) : displayVal.toFixed(1);
-              const isProfitable = (trader?.sharpe ?? trade.traderScore) >= 0;
-              const scoreColor = isProfitable ? "#3ecf73" : "#ff5c5c";
-              const rowBg = isProfitable ? "rgba(30,80,50,0.35)" : "rgba(80,25,25,0.3)";
-              const rowBgHover = isProfitable ? "rgba(30,80,50,0.5)" : "rgba(80,25,25,0.45)";
+                ? (trade.traderSharpe ?? trader?.sharpe ?? 1.0)
+                : (trade.traderScore ?? trader?.smartScore ?? 50.0);
+              
+              const displayFmt = metric === "sharpe" ? displayVal.toFixed(2) : Math.round(displayVal).toString();
+              
+              // Dynamic Metric Color
+              let metricColor = "#ff5c5c";
+              if (metric === "sharpe") {
+                if (displayVal >= 2) metricColor = "#3ecf73";
+                else if (displayVal >= 1.5) metricColor = "#10b981";
+                else if (displayVal >= 1.0) metricColor = "#a3e635";
+                else if (displayVal >= 0.5) metricColor = "#f59e0b";
+              } else {
+                if (displayVal >= 80) metricColor = "#3ecf73";
+                else if (displayVal >= 65) metricColor = "#10b981";
+                else if (displayVal >= 50) metricColor = "#a3e635";
+                else if (displayVal >= 35) metricColor = "#f59e0b";
+              }
+
+              // Row background depends on trade type (buy vs sell)
+              const isBuy = trade.type === "buy";
+              const rowBg = isBuy ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)";
+              const rowBgHover = isBuy ? "rgba(16, 185, 129, 0.13)" : "rgba(239, 68, 68, 0.13)";
 
               return (
                 <tr
@@ -323,8 +360,8 @@ export function RecentTradesTable({ items, limit = 20 }: { items: RecentTrade[];
                           {trade.traderName}
                         </Link>
                         <PlatformLogoBadge platform={trade.platform} />
-                        <span style={{ color: scoreColor, fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
-                          {isProfitable ? displayFmt : displayFmt}
+                        <span style={{ color: metricColor, fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
+                          {displayFmt}
                         </span>
                       </div>
                     </div>
@@ -333,7 +370,16 @@ export function RecentTradesTable({ items, limit = 20 }: { items: RecentTrade[];
                   {/* Market cell */}
                   <td style={td}>
                     <div style={{ display: "flex", alignItems: "center" }}>
-                      <MarketEmoji title={trade.marketTitle} category={trade.category} />
+                      {trade.marketIcon ? (
+                        <img
+                          src={trade.marketIcon}
+                          alt=""
+                          style={{ width: 18, height: 18, borderRadius: 4, marginRight: 8, flexShrink: 0, objectFit: "cover" }}
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        />
+                      ) : (
+                        <MarketEmoji title={trade.marketTitle} category={trade.category} />
+                      )}
                       <span style={{
                         color: "rgba(255,255,255,0.9)", fontWeight: 400, fontSize: "0.88rem",
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 280

@@ -59,6 +59,25 @@ export function LeaderboardTable({
                         {trader.displayName}
                       </Link>
                       <div className="social-badges-row">
+                        {trader.affiliated && (
+                          <span className="affiliated-badge" title="Predicting.top Affiliated Trader" style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 15,
+                            height: 15,
+                            borderRadius: "50%",
+                            background: "#ffffff",
+                            border: "1px solid #ffffff",
+                            flexShrink: 0
+                          }}>
+                            <svg viewBox="0 0 24 24" style={{ width: 8, height: 8 }} aria-hidden="true">
+                              <circle cx="12" cy="12" r="10" fill="#0c0d10" />
+                              <circle cx="12" cy="12" r="6" fill="none" stroke="#ffffff" strokeWidth="2.5" />
+                              <circle cx="12" cy="12" r="2" fill="#ffffff" />
+                            </svg>
+                          </span>
+                        )}
                         {trader.xLinked && (
                           <span className="x-badge" title="Linked X profile">
                             <svg viewBox="0 0 24 24" className="x-logo-svg" style={{ width: 11, height: 11, fill: '#ffffff' }} aria-hidden="true">

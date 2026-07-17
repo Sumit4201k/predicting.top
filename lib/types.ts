@@ -27,6 +27,7 @@ export interface TraderSummary extends TraderMetricSet {
   wallet: string;
   profileViews: number;
   xLinked?: boolean;
+  affiliated?: boolean;
 }
 
 export interface TrendingMarket {
@@ -63,6 +64,7 @@ export interface RecentTrade {
   type?: "buy" | "sell";
   traderSharpe?: number;
   avatarUrl?: string;
+  marketIcon?: string;
 }
 
 export interface PositionTrader {
@@ -76,6 +78,7 @@ export interface PositionTrader {
   valueUsd: number;
   sharpe?: number;
   side?: "YES" | "NO";
+  currentPrice?: number;
 }
 
 export interface PositionMarket {
@@ -88,6 +91,7 @@ export interface PositionMarket {
   traders: PositionTrader[];
   probability?: number;
   endsIn?: string;
+  endsInDays?: number;
   smartMoneyYes?: number;
   smartMoneyNo?: number;
   tradersCount?: number;

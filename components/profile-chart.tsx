@@ -31,6 +31,16 @@ export function ProfileChart({
     return `+$${val}`;
   };
 
+  // Select a small number of evenly spaced labels to show at the bottom
+  const filteredLabels = data.length <= 4
+    ? data
+    : [
+        data[0],
+        data[Math.floor(data.length * 0.33)],
+        data[Math.floor(data.length * 0.66)],
+        data[data.length - 1]
+      ];
+
   return (
     <div className="panel chart-panel" style={{
       padding: "20px",
@@ -57,15 +67,14 @@ export function ProfileChart({
                 x2={width - paddingRight}
                 y2={y}
                 stroke="rgba(255, 255, 255, 0.05)"
+                strokeDasharray="4 4"
                 strokeWidth="1"
-                strokeDasharray="4,4"
               />
               <text
-                x={paddingLeft - 10}
+                x={paddingLeft - 12}
                 y={y + 4}
                 fill="var(--muted)"
-                fontSize="12"
-                fontWeight="500"
+                fontSize="0.75rem"
                 textAnchor="end"
               >
                 {formatYLabel(val)}
@@ -86,8 +95,8 @@ export function ProfileChart({
         fontSize: "0.8rem",
         color: "var(--muted)"
       }}>
-        {data.map((point) => (
-          <span key={point.label}>{point.label}</span>
+        {filteredLabels.map((point, index) => (
+          <span key={`${point.label}-${index}`}>{point.label}</span>
         ))}
       </div>
     </div>

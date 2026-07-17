@@ -9,24 +9,33 @@ import { PositionMarket } from "@/lib/types";
 
 const scoreOptions = [
   { label: "Any", value: "Any" },
-  { label: "60+", value: "60+" },
-  { label: "70+", value: "70+" }
+  { label: "50+", value: "50" },
+  { label: "60+", value: "60" },
+  { label: "70+", value: "70" },
+  { label: "80+", value: "80" }
 ];
 const sharpeOptions = [
   { label: "Any", value: "Any" },
-  { label: "1.0+", value: "1.0+" },
-  { label: "1.5+", value: "1.5+" },
-  { label: "2.0+", value: "2.0+" }
+  { label: "1+", value: "1" },
+  { label: "2+", value: "2" },
+  { label: "3+", value: "3" },
+  { label: "5+", value: "5" }
 ];
 const endsOptions = [
   { label: "Any", value: "Any" },
-  { label: "<30d", value: "<30d" },
-  { label: "<90d", value: "<90d" }
+  { label: "7d", value: "7" },
+  { label: "14d", value: "14" },
+  { label: "30d", value: "30" },
+  { label: "60d", value: "60" },
+  { label: "90d", value: "90" }
 ];
 const minOptions = [
   { label: "Any", value: "Any" },
-  { label: "$250k+", value: "$250k+" },
-  { label: "$400k+", value: "$400k+" }
+  { label: "$5k+", value: "5000" },
+  { label: "$10k+", value: "10000" },
+  { label: "$20k+", value: "20000" },
+  { label: "$50k+", value: "50000" },
+  { label: "$100k+", value: "100000" }
 ];
 
 function PositionsListSkeleton() {
@@ -86,7 +95,7 @@ function PositionsListSkeleton() {
 export default function PositionsPage() {
   const [side, setSide] = useState<"ALL" | "YES" | "NO">("ALL");
   const platform = "ALL" as const;
-  const [hide95, setHide95] = useState(false);
+  const [hide95, setHide95] = useState(true);
   const [scoreFloor, setScoreFloor] = useState<string>("Any");
   const [sharpeFloor, setSharpeFloor] = useState<string>("Any");
   const [endsFloor, setEndsFloor] = useState<string>("Any");
@@ -109,22 +118,82 @@ export default function PositionsPage() {
   }, [side, platform]);
 
   const filtered = useMemo(() => {
-    return allPositions.filter((market) => {
-      if (hide95 && market.smartMoneyShare >= 95) return false;
+    const parsedScoreFloor = scoreFloor !== "Any" ? parseInt(scoreFloor, 10) : 0;
+    const parsedSharpeFloor = sharpeFloor !== "Any" ? parseFloat(sharpeFloor) : 0;
+    const parsedEndsFloor = endsFloor !== "Any" ? parseInt(endsFloor, 10) : 0;
+    const parsedMinExposure = minExposure !== "Any" ? parseInt(minExposure, 10) : 0;
 
-      if (scoreFloor !== "Any") {
-        const floor = scoreFloor === "60+" ? 60 : 70;
-        if (!market.traders.some((trader) => trader.score >= floor)) return false;
-      }
+    return allPositions
+      .map((market) => {
+        // Filter the individual traders inside the card
+        const filteredTraders = market.traders.filter((trader) => {
+          // Score filter
+          if (parsedScoreFloor > 0 && trader.score < parsedScoreFloor) {
+            return false;
+          }
+          // Sharpe filter
+          if (parsedSharpeFloor > 0 && (trader.sharpe === undefined || trader.sharpe < parsedSharpeFloor)) {
+            return false;
+          }
+          // Hide 95%+ filter (based on position current price)
+          if (hide95 && trader.currentPrice !== undefined && (trader.currentPrice >= 0.95 || trader.currentPrice <= 0.05)) {
+            return false;
+          }
+          return true;
+        });
 
-      if (minExposure !== "Any") {
-        const floor = minExposure === "$250k+" ? 250000 : 400000;
-        if (market.marketValueUsd < floor) return false;
-      }
+        if (filteredTraders.length === 0) {
+          return null;
+        }
 
-      return true;
-    });
-  }, [allPositions, hide95, scoreFloor, minExposure]);
+        // Recalculate dynamic headers based ONLY on the filtered traders
+        const marketValueUsd = filteredTraders.reduce((acc, t) => acc + t.valueUsd, 0);
+
+        // Smart Money Split (weighted by trader score!)
+        let smartYes = 0;
+        let smartNo = 0;
+        filteredTraders.forEach((t) => {
+          const score = t.score ?? 50;
+          const weight = t.valueUsd * score;
+          if (t.side === "YES") {
+            smartYes += weight;
+          } else {
+            smartNo += weight;
+          }
+        });
+        const smartTotal = smartYes + smartNo;
+        const probability = smartTotal > 0 ? Math.round((smartYes / smartTotal) * 100) : 50;
+
+        return {
+          ...market,
+          traders: filteredTraders,
+          marketValueUsd,
+          probability,
+          tradersCount: filteredTraders.length
+        };
+      })
+      .filter((market): market is NonNullable<typeof market> => {
+        if (!market) return false;
+
+        // Apply Ends filter on endsInDays
+        if (parsedEndsFloor > 0) {
+          if (market.endsInDays === undefined || market.endsInDays > parsedEndsFloor || market.endsInDays <= 0) {
+            return false;
+          }
+        }
+
+        // Apply Min Exposure filter on dynamically computed marketValueUsd
+        if (parsedMinExposure > 0) {
+          if (market.marketValueUsd < parsedMinExposure) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      // Sort by holders (traders) count descending, then total value descending (matching the real site)
+      .sort((a, b) => b.traders.length - a.traders.length || b.marketValueUsd - a.marketValueUsd);
+  }, [allPositions, hide95, scoreFloor, sharpeFloor, endsFloor, minExposure]);
 
   const totalMarkets = filtered.length;
   const totalPositions = filtered.reduce((acc, item) => acc + item.traders.length, 0);

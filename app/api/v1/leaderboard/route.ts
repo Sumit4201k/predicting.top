@@ -11,8 +11,9 @@ export async function GET(request: NextRequest) {
     const period = (searchParams.get("period") as "1D" | "1M" | "YTD" | "ALL" | null) ?? "1D";
     const minPnl = Number(searchParams.get("minPnl") ?? "0");
     const xLinkedOnly = searchParams.get("xLinkedOnly") === "true";
+    const affiliatedOnly = searchParams.get("affiliatedOnly") === "true";
 
-    const data = await getLiveLeaderboard({ search, platform, sort, period, minPnl, xLinkedOnly });
+    const data = await getLiveLeaderboard({ search, platform, sort, period, minPnl, xLinkedOnly, affiliatedOnly });
     
     return NextResponse.json({
       asOf: new Date().toISOString(),
