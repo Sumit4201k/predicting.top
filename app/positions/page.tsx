@@ -92,8 +92,6 @@ export default function PositionsPage() {
   const [endsFloor, setEndsFloor] = useState<string>("Any");
   const [minExposure, setMinExposure] = useState<string>("Any");
 
-
-
   const [allPositions, setAllPositions] = useState<PositionMarket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -143,15 +141,32 @@ export default function PositionsPage() {
 
   return (
     <main className="page-shell">
-      <SiteHeader active="positions" />
-      <section className="panel page-panel" style={{ marginBottom: "24px" }}>
+      <div style={{ marginBottom: "24px" }}>
         <div className="page-header-row">
           <div>
             <h1 className="page-title">Top Positions</h1>
             <p className="muted" style={{ marginTop: 10, maxWidth: 680, fontSize: "0.95rem" }}>$1k+ positions from top prediction traders</p>
           </div>
 
-
+          <div className="page-header-actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <Link
+              href="/"
+              style={{
+                padding: "7px 14px",
+                borderRadius: "4px",
+                color: "var(--text)",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                fontSize: "0.85rem",
+                fontWeight: 500,
+                fontFamily: "Inter, var(--font-sans), sans-serif",
+                textDecoration: "none",
+                transition: "background-color 120ms ease, border-color 120ms ease"
+              }}
+            >
+              Leaderboard
+            </Link>
+          </div>
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "12px", marginBottom: 18, alignItems: "center" }}>
@@ -254,7 +269,7 @@ export default function PositionsPage() {
             </div>
           ))}
         </div>
-      </section>
+      </div>
 
       {isLoading ? (
         <PositionsListSkeleton />
